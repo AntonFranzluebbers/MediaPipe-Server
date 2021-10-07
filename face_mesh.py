@@ -1,17 +1,35 @@
 import cv2
 import mediapipe as mp
-from flask import Flask, jsonify
 import threading
-
-app = Flask(__name__)
+import asyncio
+import os
+import random
+import socket
+import json
 
 
 num_landmarks = 0
 last_data = None
 
-@app.route('/')
-def get_params():
-  return jsonify(last_data)
+
+
+# https://stackoverflow.com/questions/46932654/udp-server-with-asyncio
+
+HOST, PORT = 'localhost', 8642
+
+# Message to send to UDP port
+def send_test_message(message) -> None:
+    sock = socket.socket(socket.AF_INET,  # Internet
+                         socket.SOCK_DGRAM)  # UDP
+    sock.sendto(message.encode(), (HOST, PORT))
+
+# Continuously write messages to UDP port
+async def write_messages():
+    print("writing")
+    while True:
+        await asyncio.sleep(.1)
+        if last_data is not None:
+          send_test_message(json.dumps(last_data))
 
 
 def mediapipe_thread():
@@ -53,7 +71,7 @@ def mediapipe_thread():
           for landmark in face_landmarks.landmark:
             last_data_local.append({'x': landmark.x, 'y': landmark.y, 'z': landmark.z})
           global last_data
-          last_data = last_data_local
+          last_data = {"features": last_data_local}
 
           # print(face_landmarks)
           mp_drawing.draw_landmarks(
@@ -81,4 +99,6 @@ t = threading.Thread(target=mediapipe_thread)
 t.start()
 
 if __name__ == "__main__":
-  app.run(port=8008)
+  loop = asyncio.get_event_loop()
+  loop.run_until_complete(write_messages()) # Start writing messages (or running tests)
+  loop.run_forever()
